@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List with Edit and Drag-Drop</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .todo-container {
+            margin-top: 20px;
+        }
+        .todo-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: move;
+            user-select: none;
+        }
+        .todo-item.dragging {
+            opacity: 0.5;
+            background: #f0f0f0;
+        }
+        .todo-item.completed span {
+            text-decoration: line-through;
+            color: #888;
+        }
+        .todo-item input[type="checkbox"] {
+            margin-right: 10px;
+        }
+        .todo-item span {
+            flex-grow: 1;
+            margin-right: 10px;
+            word-break: break-word;
+        }
+        .todo-item button {
+            flex-shrink: 0;
+        }
+        .input-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            padding: 8px;
+            flex-grow: 1;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 15px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .add-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        .delete-btn {
+            background-color: #ff4444;
+            color: white;
+        }
+        .edit-btn {
+            background-color: #007bff;
+            color: white;
+        }
+        .popover {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 400px; /* Increased width */
+            max-width: 500px;
+        }
+        .popover textarea {
+            width: 100%;
+            height: 80px; /* Increased height for multiline */
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical; /* Allows vertical resizing */
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+        .popover .button-container {
+            display: flex;
+            justify-content: flex-end;
+            gap: 5px;
+        }
+        .popover button {
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>To-Do List</h1>
+    <div class="input-container">
+        <input type="text" id="todoInput" placeholder="Add a new task...">
+        <button class="add-btn" onclick="addTodo()">Add Task</button>
+    </div>
+    <div id="todoList" class="todo-container"></div>
+
+    <script>
+        // Array to store todos
+        let todos = [];
+
+        // Load todos from localStorage on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTodos = localStorage.getItem('todos');
+            if (savedTodos) {
+                todos = JSON.parse(savedTodos);
+                renderTodos();
+            }
+        });
+
+        // Add new todo
+        function addTodo() {
+            const input = document.getElementById('todoInput');
+            const text = input.value.trim();
+            
+            if (text) {
+                todos.push({
+                    id: Date.now(),
+                    text: text,
+                    completed: false
+                });
+                input.value = '';
+                saveTodos();
+                renderTodos();
+            }
+        }
+
+        // Toggle todo completion status
+        function toggleTodo(id) {
+            todos = todos.map(todo => 
+                todo.id === id ? { ...todo, completed: !todo.completed } : todo
+            );
+            saveTodos();
+            renderTodos();
+        }
+
+        // Delete todo
+        function deleteTodo(id) {
+            todos = todos.filter(todo => todo.id !== id);
+            saveTodos();
+            renderTodos();
+        }
+
+        // Edit todo
+        function showEditPopover(id) {
+            // Remove any existing popover
+            const existingPopover = document.querySelector('.popover');
+            if (existingPopover) existingPopover.remove();
+
+            const todo = todos.find(todo => todo.id === id);
+            const todoItem = document.querySelector(`[data-id="${id}"]`);
+            const popover = document.createElement('div');
+            popover.className = 'popover';
+            popover.innerHTML = `
+                <textarea id="editInput">${todo.text}</textarea>
+                <div class="button-container">
+                    <button onclick="saveEdit(${id})">Save</button>
+                    <button onclick="cancelEdit()">Cancel</button>
+                </div>
+            `;
+
+            // Position popover near the todo item
+            const rect = todoItem.getBoundingClientRect();
+            popover.style.top = `${rect.bottom + window.scrollY}px`;
+            popover.style.left = `${rect.left + window.scrollX}px`;
+
+            document.body.appendChild(popover);
+            document.getElementById('editInput').focus();
+        }
+
+        // Save edited todo
+        function saveEdit(id) {
+            const editInput = document.getElementById('editInput');
+            const newText = editInput.value.trim();
+            
+            if (newText) {
+                todos = todos.map(todo => 
+                    todo.id === id ? { ...todo, text: newText } : todo
+                );
+                saveTodos();
+                renderTodos();
+            }
+            document.querySelector('.popover').remove();
+        }
+
+        // Cancel edit
+        function cancelEdit() {
+            document.querySelector('.popover').remove();
+        }
+
+        // Save todos to localStorage
+        function saveTodos() {
+            localStorage.setItem('todos', JSON.stringify(todos));
+        }
+
+        // Render todos
+        function renderTodos() {
+            const todoList = document.getElementById('todoList');
+            todoList.innerHTML = '';
+
+            todos.forEach(todo => {
+                const todoItem = document.createElement('div');
+                todoItem.className = 'todo-item' + (todo.completed ? ' completed' : '');
+                todoItem.setAttribute('data-id', todo.id);
+                todoItem.setAttribute('draggable', true);
+
+                todoItem.innerHTML = `
+                    <input type="checkbox" 
+                           ${todo.completed ? 'checked' : ''} 
+                           onchange="toggleTodo(${todo.id})">
+                    <span>${todo.text}</span>
+                    <button class="edit-btn" onclick="showEditPopover(${todo.id})">Edit</button>
+                    <button class="delete-btn" onclick="deleteTodo(${todo.id})">Delete</button>
+                `;
+
+                // Add drag event listeners
+                todoItem.addEventListener('dragstart', handleDragStart);
+                todoItem.addEventListener('dragover', handleDragOver);
+                todoItem.addEventListener('drop', handleDrop);
+                todoItem.addEventListener('dragend', handleDragEnd);
+
+                todoList.appendChild(todoItem);
+            });
+        }
+
+        // Drag and Drop handlers
+        let draggedItem = null;
+
+        function handleDragStart(e) {
+            draggedItem = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', this.innerHTML);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDrop(e) {
+            e.stopPropagation();
+            if (draggedItem !== this) {
+                const draggedId = parseInt(draggedItem.getAttribute('data-id'));
+                const targetId = parseInt(this.getAttribute('data-id'));
+                const draggedIndex = todos.findIndex(todo => todo.id === draggedId);
+                const targetIndex = todos.findIndex(todo => todo.id === targetId);
+                const [draggedTodo] = todos.splice(draggedIndex, 1);
+                todos.splice(targetIndex, 0, draggedTodo);
+                saveTodos();
+                renderTodos();
+            }
+            return false;
+        }
+
+        function handleDragEnd() {
+            this.classList.remove('dragging');
+            draggedItem = null;
+        }
+
+        // Add todo on Enter key press
+        document.getElementById('todoInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addTodo();
+            }
+        });
+
+        // Handle Enter key for edit popover
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && document.querySelector('.popover')) {
+                const editInput = document.getElementById('editInput');
+                if (document.activeElement === editInput) {
+                    const id = parseInt(document.querySelector('.popover').previousElementSibling?.dataset.id);
+                    if (id) saveEdit(id);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+</html>
